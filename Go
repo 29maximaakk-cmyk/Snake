@@ -1,0 +1,198 @@
+package main
+
+import (
+    "image/color"
+    "log"
+    "math/rand"
+    "time"
+    "github.com/hajimehoshi/ebiten/v2"
+    "github.com/hajimehoshi/ebiten/v2/inpututil"
+)
+
+const (
+    cellSize = 30
+    gridW    = 20
+    gridH    = 15
+    screenW  = gridW * cellSize
+    screenH  = gridH * cellSize
+)
+
+type Point struct{ X, Y int }
+
+type Game struct {
+    snake      []Point
+    direction  Point
+    nextDir    Point
+    food       Point
+    score      int
+    highScore  int
+    gameOver   bool
+    paused     bool
+    growFlag   bool
+    moveTimer  int
+    moveDelay  int
+}
+
+func NewGame() *Game {
+    g := &Game{
+        snake:     []Point{{gridW / 2, gridH / 2}},
+        direction: Point{1, 0},
+        nextDir:   Point{1, 0},
+        moveDelay: 10,
+        highScore: 0,
+    }
+    g.loadHighScore()
+    g.spawnFood()
+    return g
+}
+
+func (g *Game) spawnFood() {
+    for {
+        fx := rand.Intn(gridW)
+        fy := rand.Intn(gridH)
+        ok := true
+        for _, s := range g.snake {
+            if s.X == fx && s.Y == fy {
+                ok = false
+                break
+            }
+        }
+        if ok {
+            g.food = Point{fx, fy}
+            return
+        }
+    }
+}
+
+func (g *Game) move() {
+    if g.gameOver || g.paused {
+        return
+    }
+    g.direction = g.nextDir
+    head := g.snake[0]
+    newHead := Point{head.X + g.direction.X, head.Y + g.direction.Y}
+    // проверка стен
+    if newHead.X < 0 || newHead.X >= gridW || newHead.Y < 0 || newHead.Y >= gridH {
+        g.gameOver = true
+        return
+    }
+    // проверка самопересечения
+    for _, s := range g.snake {
+        if s == newHead {
+            g.gameOver = true
+            return
+        }
+    }
+    g.snake = append([]Point{newHead}, g.snake...)
+    if newHead == g.food {
+        g.score += 10
+        if g.score > g.highScore {
+            g.highScore = g.score
+            g.saveHighScore()
+        }
+        g.spawnFood()
+        g.moveDelay = max(5, 10-g.score/100)
+        g.growFlag = true
+    } else {
+        g.snake = g.snake[:len(g.snake)-1]
+    }
+    if g.growFlag {
+        g.growFlag = false
+    }
+}
+
+func (g *Game) Update() error {
+    // управление
+    if inpututil.IsKeyJustPressed(ebiten.KeyUp) && g.direction.Y != 1 {
+        g.nextDir = Point{0, -1}
+    }
+    if inpututil.IsKeyJustPressed(ebiten.KeyDown) && g.direction.Y != -1 {
+        g.nextDir = Point{0, 1}
+    }
+    if inpututil.IsKeyJustPressed(ebiten.KeyLeft) && g.direction.X != 1 {
+        g.nextDir = Point{-1, 0}
+    }
+    if inpututil.IsKeyJustPressed(ebiten.KeyRight) && g.direction.X != -1 {
+        g.nextDir = Point{1, 0}
+    }
+    if inpututil.IsKeyJustPressed(ebiten.KeyW) && g.direction.Y != 1 {
+        g.nextDir = Point{0, -1}
+    }
+    if inpututil.IsKeyJustPressed(ebiten.KeyS) && g.direction.Y != -1 {
+        g.nextDir = Point{0, 1}
+    }
+    if inpututil.IsKeyJustPressed(ebiten.KeyA) && g.direction.X != 1 {
+        g.nextDir = Point{-1, 0}
+    }
+    if inpututil.IsKeyJustPressed(ebiten.KeyD) && g.direction.X != -1 {
+        g.nextDir = Point{1, 0}
+    }
+    if inpututil.IsKeyJustPressed(ebiten.KeyP) {
+        g.paused = !g.paused
+    }
+    if inpututil.IsKeyJustPressed(ebiten.KeyR) && g.gameOver {
+        g.reset()
+    }
+    // таймер движения
+    g.moveTimer++
+    if g.moveTimer >= g.moveDelay {
+        g.move()
+        g.moveTimer = 0
+    }
+    return nil
+}
+
+func (g *Game) reset() {
+    g.snake = []Point{{gridW / 2, gridH / 2}}
+    g.direction = Point{1, 0}
+    g.nextDir = Point{1, 0}
+    g.score = 0
+    g.gameOver = false
+    g.paused = false
+    g.growFlag = false
+    g.moveDelay = 10
+    g.spawnFood()
+}
+
+func (g *Game) Draw(screen *ebiten.Image) {
+    screen.Fill(color.Black)
+    // еда
+    ebitenutil.DrawRect(screen, float64(g.food.X*cellSize), float64(g.food.Y*cellSize), cellSize-1, cellSize-1, color.RGBA{255,0,0,255})
+    // змейка
+    for i, s := range g.snake {
+        col := color.RGBA{0,255,0,255}
+        if i == 0 {
+            col = color.RGBA{0,200,0,255}
+        }
+        ebitenutil.DrawRect(screen, float64(s.X*cellSize), float64(s.Y*cellSize), cellSize-1, cellSize-1, col)
+    }
+    // текст
+    ebitenutil.DebugPrintAt(screen, formatText("Score: "+itoa(g.score)+" High: "+itoa(g.highScore)), 10, 10)
+    if g.gameOver {
+        ebitenutil.DebugPrintAt(screen, "GAME OVER - Press R", screenW/2-100, screenH/2)
+    }
+    if g.paused {
+        ebitenutil.DebugPrintAt(screen, "PAUSED", screenW/2-40, screenH/2)
+    }
+}
+
+func formatText(s string) string { return s }
+func itoa(n int) string { return string(rune(n+'0')) } // упрощённо
+
+func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+    return screenW, screenH
+}
+
+func (g *Game) loadHighScore() {}
+func (g *Game) saveHighScore() {}
+
+func max(a, b int) int { if a>b {return a}; return b }
+
+func main() {
+    rand.Seed(time.Now().UnixNano())
+    ebiten.SetWindowSize(screenW, screenH)
+    ebiten.SetWindowTitle("Snake - Go")
+    if err := ebiten.RunGame(NewGame()); err != nil {
+        log.Fatal(err)
+    }
+}
