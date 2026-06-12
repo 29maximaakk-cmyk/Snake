@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head><title>Snake - JS</title><style>canvas{border:1px solid green;}</style></head>
+<body>
+<canvas id="canvas" width="600" height="450"></canvas>
+<div>Score: <span id="score">0</span> High: <span id="high">0</span></div>
+<script src="snake.js"></script>
+</body>
+</html>
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const CELL=30, GRID_W=20, GRID_H=15;
+let snake = [{x:10,y:7}];
+let dx=1, dy=0;
+let food = {x:15,y:7};
+let score=0, highScore=localStorage.getItem('snakeHigh')||0;
+let gameOver=false, paused=false;
+let interval;
+let speed=100;
+
+function randomFood(){
+    let pos;
+    do { pos={x:Math.floor(Math.random()*GRID_W), y:Math.floor(Math.random()*GRID_H)}; }
+    while(snake.some(s=>s.x===pos.x&&s.y===pos.y));
+    return pos;
+}
+
+function move(){
+    let head = snake[0];
+    let newHead = {x:head.x+dx, y:head.y+dy};
+    if(newHead.x<0||newHead.x>=GRID_W||newHead.y<0||newHead.y>=GRID_H || snake.some(s=>s.x===newHead.x&&s.y===newHead.y)){
+        gameOver=true;
+        clearInterval(interval);
+        draw();
+        return;
+    }
+    snake.unshift(newHead);
+    if(newHead.x===food.x && newHead.y===food.y){
+        score+=10;
+        if(score>highScore){ highScore=score; localStorage.setItem('snakeHigh',highScore); }
+        food = randomFood();
+        speed = Math.max(50, 100 - Math.floor(score/5));
+        clearInterval(interval);
+        interval = setInterval(()=>{ if(!gameOver&&!paused) move(); draw(); }, speed);
+    } else {
+        snake.pop();
+    }
+    draw();
+}
+
+function draw(){
+    ctx.fillStyle='black';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle='red';
+    ctx.fillRect(food.x*CELL, food.y*CELL, CELL-1, CELL-1);
+    for(let i=0;i<snake.length;i++){
+        ctx.fillStyle = i===0 ? 'lime' : 'green';
+        ctx.fillRect(snake[i].x*CELL, snake[i].y*CELL, CELL-1, CELL-1);
+    }
+    ctx.fillStyle='white';
+    ctx.font='20px monospace';
+    ctx.fillText(`Score: ${score}  High: ${highScore}`,10,30);
+    if(gameOver) ctx.fillText('GAME OVER - Press R', canvas.width/2-120, canvas.height/2);
+    if(paused) ctx.fillText('PAUSED', canvas.width/2-40, canvas.height/2);
+}
+
+document.addEventListener('keydown',(e)=>{
+    const key = e.key;
+    if(gameOver && key==='r'){ reset(); return; }
+    if(key==='ArrowUp' && dy!==1){ dx=0; dy=-1; }
+    else if(key==='ArrowDown' && dy!==-1){ dx=0; dy=1; }
+    else if(key==='ArrowLeft' && dx!==1){ dx=-1; dy=0; }
+    else if(key==='ArrowRight' && dx!==-1){ dx=1; dy=0; }
+    else if(key==='w' && dy!==1){ dx=0; dy=-1; }
+    else if(key==='s' && dy!==-1){ dx=0; dy=1; }
+    else if(key==='a' && dx!==1){ dx=-1; dy=0; }
+    else if(key==='d' && dx!==-1){ dx=1; dy=0; }
+    else if(key==='p'){ paused=!paused; draw(); }
+});
+function reset(){
+    snake = [{x:10,y:7}];
+    dx=1; dy=0;
+    score=0;
+    gameOver=false;
+    paused=false;
+    speed=100;
+    food = randomFood();
+    if(interval) clearInterval(interval);
+    interval = setInterval(()=>{ if(!gameOver&&!paused) move(); draw(); }, speed);
+    draw();
+}
+document.getElementById('high').innerText = highScore;
+reset();
