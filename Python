@@ -1,0 +1,155 @@
+Python (Pygame)
+
+**`python/snake.py`**
+
+```python
+import pygame
+import random
+import sys
+import json
+import os
+
+# Инициализация
+pygame.init()
+CELL_SIZE = 30
+GRID_W = 20
+GRID_H = 15
+WIDTH = GRID_W * CELL_SIZE
+HEIGHT = GRID_H * CELL_SIZE
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Snake - Python")
+clock = pygame.time.Clock()
+
+# Цвета (зелёная гамма)
+BLACK = (0, 0, 0)
+GREEN = (0, 255, 0)
+DARK_GREEN = (0, 150, 0)
+RED = (255, 0, 0)
+WHITE = (255, 255, 255)
+
+# Направления
+UP = (0, -1)
+DOWN = (0, 1)
+LEFT = (-1, 0)
+RIGHT = (1, 0)
+
+class Snake:
+    def __init__(self):
+        self.reset()
+        self.load_high_score()
+    
+    def reset(self):
+        self.body = [(GRID_W//2, GRID_H//2)]
+        self.direction = RIGHT
+        self.grow_flag = False
+        self.score = 0
+        self.game_over = False
+        self.paused = False
+        self.speed = 10
+        self.food = self.random_food()
+    
+    def random_food(self):
+        while True:
+            pos = (random.randint(0, GRID_W-1), random.randint(0, GRID_H-1))
+            if pos not in self.body:
+                return pos
+    
+    def move(self):
+        if self.game_over or self.paused:
+            return
+        head = self.body[0]
+        new_head = (head[0] + self.direction[0], head[1] + self.direction[1])
+        # Столкновение со стенами
+        if new_head[0] < 0 or new_head[0] >= GRID_W or new_head[1] < 0 or new_head[1] >= GRID_H:
+            self.game_over = True
+            return
+        # Столкновение с собой
+        if new_head in self.body:
+            self.game_over = True
+            return
+        self.body.insert(0, new_head)
+        if new_head == self.food:
+            self.score += 10
+            self.food = self.random_food()
+            self.speed = min(20, 10 + self.score // 50)
+            self.grow_flag = True
+        else:
+            self.body.pop()
+        if self.grow_flag:
+            self.grow_flag = False
+    
+    def change_direction(self, new_dir):
+        if (new_dir[0] * -1, new_dir[1] * -1) != self.direction:
+            self.direction = new_dir
+    
+    def load_high_score(self):
+        if os.path.exists("snake_high.json"):
+            with open("snake_high.json", "r") as f:
+                data = json.load(f)
+                self.high_score = data.get("high_score", 0)
+        else:
+            self.high_score = 0
+    
+    def save_high_score(self):
+        if self.score > self.high_score:
+            self.high_score = self.score
+            with open("snake_high.json", "w") as f:
+                json.dump({"high_score": self.high_score}, f)
+
+def draw_grid(snake):
+    screen.fill(BLACK)
+    # еда
+    fx, fy = snake.food
+    pygame.draw.rect(screen, RED, (fx*CELL_SIZE, fy*CELL_SIZE, CELL_SIZE-1, CELL_SIZE-1))
+    # змейка
+    for i, (x, y) in enumerate(snake.body):
+        color = GREEN if i==0 else DARK_GREEN
+        pygame.draw.rect(screen, color, (x*CELL_SIZE, y*CELL_SIZE, CELL_SIZE-1, CELL_SIZE-1))
+    # счёт
+    font = pygame.font.SysFont('monospace', 24)
+    score_text = font.render(f"Score: {snake.score}  High: {snake.high_score}", True, WHITE)
+    screen.blit(score_text, (10, 10))
+    if snake.game_over:
+        over_text = font.render("GAME OVER - Press R", True, RED)
+        screen.blit(over_text, (WIDTH//2-100, HEIGHT//2))
+    if snake.paused:
+        pause_text = font.render("PAUSED - Press P", True, WHITE)
+        screen.blit(pause_text, (WIDTH//2-80, HEIGHT//2))
+
+def main():
+    snake = Snake()
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_UP and snake.direction != DOWN:
+                    snake.change_direction(UP)
+                elif event.key == pygame.K_DOWN and snake.direction != UP:
+                    snake.change_direction(DOWN)
+                elif event.key == pygame.K_LEFT and snake.direction != RIGHT:
+                    snake.change_direction(LEFT)
+                elif event.key == pygame.K_RIGHT and snake.direction != LEFT:
+                    snake.change_direction(RIGHT)
+                elif event.key == pygame.K_w and snake.direction != DOWN:
+                    snake.change_direction(UP)
+                elif event.key == pygame.K_s and snake.direction != UP:
+                    snake.change_direction(DOWN)
+                elif event.key == pygame.K_a and snake.direction != RIGHT:
+                    snake.change_direction(LEFT)
+                elif event.key == pygame.K_d and snake.direction != LEFT:
+                    snake.change_direction(RIGHT)
+                elif event.key == pygame.K_p:
+                    snake.paused = not snake.paused
+                elif event.key == pygame.K_r and snake.game_over:
+                    snake.reset()
+        snake.move()
+        draw_grid(snake)
+        pygame.display.flip()
+        clock.tick(snake.speed)
+    pygame.quit()
+    sys.exit()
+
+if __name__ == "__main__":
+    main()
