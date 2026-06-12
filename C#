@@ -1,0 +1,105 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Windows.Forms;
+
+public class SnakeForm : Form
+{
+    private const int CELL = 30;
+    private const int GRID_W = 20;
+    private const int GRID_H = 15;
+    private Timer timer;
+    private List<Point> snake = new List<Point>();
+    private Point food;
+    private int dx = 1, dy = 0;
+    private int score = 0, highScore = 0;
+    private bool gameOver = false, paused = false;
+    private Random rand = new Random();
+
+    public SnakeForm()
+    {
+        this.Text = "Snake - C#";
+        this.ClientSize = new Size(GRID_W*CELL, GRID_H*CELL);
+        this.DoubleBuffered = true;
+        this.KeyPreview = true;
+        this.KeyDown += OnKeyDown;
+        this.Paint += OnPaint;
+        ResetGame();
+        timer = new Timer { Interval = 100 };
+        timer.Tick += (s, e) => { if(!gameOver && !paused) Move(); Invalidate(); };
+        timer.Start();
+    }
+
+    private void ResetGame()
+    {
+        snake.Clear();
+        snake.Add(new Point(GRID_W/2, GRID_H/2));
+        dx = 1; dy = 0;
+        score = 0;
+        gameOver = false;
+        paused = false;
+        SpawnFood();
+        timer.Interval = 100;
+    }
+
+    private void SpawnFood()
+    {
+        do { food = new Point(rand.Next(GRID_W), rand.Next(GRID_H)); }
+        while (snake.Contains(food));
+    }
+
+    private void Move()
+    {
+        Point head = snake[0];
+        Point newHead = new Point(head.X + dx, head.Y + dy);
+        if (newHead.X < 0 || newHead.X >= GRID_W || newHead.Y < 0 || newHead.Y >= GRID_H || snake.Contains(newHead))
+        {
+            gameOver = true;
+            return;
+        }
+        snake.Insert(0, newHead);
+        if (newHead.Equals(food))
+        {
+            score += 10;
+            if (score > highScore) highScore = score;
+            SpawnFood();
+            timer.Interval = Math.Max(50, 100 - score/5);
+        }
+        else
+            snake.RemoveAt(snake.Count-1);
+    }
+
+    private void OnKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.KeyCode == Keys.Up && dy != 1) { dx=0; dy=-1; }
+        else if (e.KeyCode == Keys.Down && dy != -1) { dx=0; dy=1; }
+        else if (e.KeyCode == Keys.Left && dx != 1) { dx=-1; dy=0; }
+        else if (e.KeyCode == Keys.Right && dx != -1) { dx=1; dy=0; }
+        else if (e.KeyCode == Keys.W && dy != 1) { dx=0; dy=-1; }
+        else if (e.KeyCode == Keys.S && dy != -1) { dx=0; dy=1; }
+        else if (e.KeyCode == Keys.A && dx != 1) { dx=-1; dy=0; }
+        else if (e.KeyCode == Keys.D && dx != -1) { dx=1; dy=0; }
+        else if (e.KeyCode == Keys.P) paused = !paused;
+        else if (e.KeyCode == Keys.R && gameOver) ResetGame();
+    }
+
+    private void OnPaint(object sender, PaintEventArgs e)
+    {
+        Graphics g = e.Graphics;
+        g.Clear(Color.Black);
+        // еда
+        g.FillRectangle(Brushes.Red, food.X*CELL, food.Y*CELL, CELL-1, CELL-1);
+        // змейка
+        for (int i=0; i<snake.Count; i++)
+        {
+            Brush br = i==0 ? Brushes.LimeGreen : Brushes.Green;
+            g.FillRectangle(br, snake[i].X*CELL, snake[i].Y*CELL, CELL-1, CELL-1);
+        }
+        g.DrawString($"Score: {score}  High: {highScore}", Font, Brushes.White, 10, 10);
+        if (gameOver) g.DrawString("GAME OVER - Press R", Font, Brushes.Red, GRID_W*CELL/2-80, GRID_H*CELL/2);
+        if (paused) g.DrawString("PAUSED", Font, Brushes.Yellow, GRID_W*CELL/2-40, GRID_H*CELL/2);
+    }
+
+    [STAThread]
+    static void Main() { Application.Run(new SnakeForm()); }
+}
